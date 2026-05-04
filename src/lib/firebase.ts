@@ -4,12 +4,12 @@ import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCcMLHz5eLpV10YMXFkNSCVxYhxR6WxyBs",
-  authDomain: "tamuyum.firebaseapp.com",
-  projectId: "tamuyum",
-  storageBucket: "tamuyum.appspot.com",
-  messagingSenderId: "912689470856",
-  appId: "1:912689470856:web:42898bb6fdc9c4dfa22e3d"
+  apiKey: "AIzaSyDtwN1fJFvflhqsnz25Ux65o3tyODDlEFI",
+  authDomain: "dindersiatolyesi.firebaseapp.com",
+  projectId: "dindersiatolyesi",
+  storageBucket: "dindersiatolyesi.firebasestorage.app",
+  messagingSenderId: "384271892451",
+  appId: "1:384271892451:web:94d82a40c0c0b447e9aad6"
 };
 
 let app: FirebaseApp;

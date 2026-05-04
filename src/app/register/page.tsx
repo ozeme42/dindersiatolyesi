@@ -45,6 +45,7 @@ export default function RegisterPage() {
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
   const [newSchoolName, setNewSchoolName] = useState('');
+  const [isTeacherMode, setIsTeacherMode] = useState(false);
 
   const [requireApproval, setRequireApproval] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
@@ -106,7 +107,7 @@ export default function RegisterPage() {
     const displayName = (formData.get('display-name') as string).trim();
     const password = formData.get('password') as string;
     
-    if (!displayName || !password || !selectedClassId || !selectedBranch || (!selectedSchoolId && !newSchoolName)) {
+    if (!displayName || !password || (!isTeacherMode && (!selectedClassId || !selectedBranch || (!selectedSchoolId && !newSchoolName)))) {
         toast({ title: "Eksik Bilgi", description: "Lütfen tüm alanları doldurun.", variant: "destructive" });
         setIsSubmitting(false);
         return;
@@ -122,30 +123,35 @@ export default function RegisterPage() {
 
     try {
         let finalSchoolName = '';
-        if (selectedSchoolId === 'new') {
-            finalSchoolName = newSchoolName.trim().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-            if (finalSchoolName && !schools.some(s => s.name.toLowerCase() === finalSchoolName.toLowerCase())) {
-                 await addDoc(collection(db, "schools"), { name: finalSchoolName });
+        if (!isTeacherMode) {
+            if (selectedSchoolId === 'new') {
+                finalSchoolName = newSchoolName.trim().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+                if (finalSchoolName && !schools.some(s => s.name.toLowerCase() === finalSchoolName.toLowerCase())) {
+                     await addDoc(collection(db, "schools"), { name: finalSchoolName });
+                }
+            } else {
+                finalSchoolName = schools.find(s => s.id === selectedSchoolId)?.name || '';
             }
-        } else {
-            finalSchoolName = schools.find(s => s.id === selectedSchoolId)?.name || '';
         }
         
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        const roleForNewUser = requireApproval ? 'pending' : 'student';
+        const roleForNewUser = isTeacherMode ? 'teacher' : (requireApproval ? 'pending' : 'student');
 
         const userProfile: Omit<UserProfile, 'uid'> = {
             displayName,
             email,
             role: roleForNewUser,
-            class: `${selectedClass?.name} - ${selectedBranch}`,
-            schoolName: finalSchoolName,
             score: 0,
             createdAt: serverTimestamp(),
             ownedItems: [],
         };
+
+        if (!isTeacherMode) {
+            userProfile.class = `${selectedClass?.name} - ${selectedBranch}`;
+            userProfile.schoolName = finalSchoolName;
+        }
 
         await setDoc(doc(db, "users", user.uid), userProfile);
         
@@ -182,7 +188,7 @@ export default function RegisterPage() {
                 <UserPlus className="h-10 w-10 text-cyan-400" />
             </div>
             <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-white drop-shadow-sm">
-                YENİ HESAP
+                {isTeacherMode ? "ÖĞRETMEN KAYDI" : "YENİ HESAP"}
             </h1>
             <p className="text-indigo-200/60 font-medium mt-2">Maceraya katılmak için kaydol.</p>
         </div>
@@ -206,44 +212,48 @@ export default function RegisterPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="class">Sınıf</Label>
-                        <Select value={selectedClassId} onValueChange={(value) => { setSelectedClassId(value); setSelectedBranch(''); }}>
-                            <SelectTrigger id="class" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Seçiniz..." /></SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-white/10 text-white">
-                                {classes && classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="branch">Şube</Label>
-                        <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={!selectedClass || !selectedClass.branches || selectedClass.branches.length === 0}>
-                            <SelectTrigger id="branch" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Seçiniz..." /></SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-white/10 text-white">
-                                {selectedClass?.branches?.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                
-                <div className="space-y-2">
-                    <Label htmlFor="school">Okul</Label>
-                    <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
-                        <SelectTrigger id="school" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Okulunuzu seçin..." /></SelectTrigger>
-                        <SelectContent className="bg-slate-900 border-white/10 text-white">
-                            {schools && schools.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                            <SelectItem value="new"><span className="flex items-center gap-2"><PlusCircle className="h-4 w-4 text-cyan-400"/>Diğer (Yeni Okul Ekle)</span></SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+                {!isTeacherMode && (
+                    <>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="class">Sınıf</Label>
+                                <Select value={selectedClassId} onValueChange={(value) => { setSelectedClassId(value); setSelectedBranch(''); }}>
+                                    <SelectTrigger id="class" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Seçiniz..." /></SelectTrigger>
+                                    <SelectContent className="bg-slate-900 border-white/10 text-white">
+                                        {classes && classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="branch">Şube</Label>
+                                <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={!selectedClass || !selectedClass.branches || selectedClass.branches.length === 0}>
+                                    <SelectTrigger id="branch" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Seçiniz..." /></SelectTrigger>
+                                    <SelectContent className="bg-slate-900 border-white/10 text-white">
+                                        {selectedClass?.branches?.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <Label htmlFor="school">Okul</Label>
+                            <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+                                <SelectTrigger id="school" className="bg-black/20 border-white/10 text-white h-12 rounded-xl"><SelectValue placeholder="Okulunuzu seçin..." /></SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-white/10 text-white">
+                                    {schools && schools.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                    <SelectItem value="new"><span className="flex items-center gap-2"><PlusCircle className="h-4 w-4 text-cyan-400"/>Diğer (Yeni Okul Ekle)</span></SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                {selectedSchoolId === 'new' && (
-                    <div className="space-y-2 group animate-in slide-in-from-top-2">
-                        <Label htmlFor="new-school-name">Yeni Okul Adı</Label>
-                        <Input id="new-school-name" name="new-school-name" value={newSchoolName} onChange={e => setNewSchoolName(e.target.value)} placeholder="Örn: Yunus Emre Ortaokulu" className="bg-black/20 border-white/10 text-white h-12 rounded-xl focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500"/>
-                        <p className="text-xs text-indigo-300/60 px-2">Lütfen okul adının her kelimesinin baş harfini büyük yazın.</p>
-                    </div>
+                        {selectedSchoolId === 'new' && (
+                            <div className="space-y-2 group animate-in slide-in-from-top-2">
+                                <Label htmlFor="new-school-name">Yeni Okul Adı</Label>
+                                <Input id="new-school-name" name="new-school-name" value={newSchoolName} onChange={e => setNewSchoolName(e.target.value)} placeholder="Örn: Yunus Emre Ortaokulu" className="bg-black/20 border-white/10 text-white h-12 rounded-xl focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500"/>
+                                <p className="text-xs text-indigo-300/60 px-2">Lütfen okul adının her kelimesinin baş harfini büyük yazın.</p>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 <Button type="submit" disabled={isSubmitting || settingsLoading} className="w-full h-12 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-cyan-900/20 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 transition-all">
@@ -258,11 +268,14 @@ export default function RegisterPage() {
                     )}
                 </Button>
 
-                <div className="pt-2 text-center">
+                <div className="pt-2 text-center flex flex-col items-center gap-4">
                     <Button variant="link" asChild className="text-indigo-300 hover:text-white transition-colors">
                         <Link href="/login" className="flex items-center gap-2">
                             <ArrowLeft className="h-4 w-4" /> Zaten hesabım var
                         </Link>
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => setIsTeacherMode(!isTeacherMode)} className="text-xs text-white/30 hover:text-white/60 h-auto p-1 font-normal">
+                        {isTeacherMode ? "Öğrenci kaydına dön" : "Öğretmen olarak kayıt ol"}
                     </Button>
                 </div>
             </form>
